@@ -1,4 +1,3 @@
-// useImageStore.js
 import { defineStore } from 'pinia';
 import localforage from 'localforage';
 
@@ -13,7 +12,6 @@ localforage.config({
   version: 1.0
 });
 
-// 创建分片存储实例
 const imageChunkStore = localforage.createInstance({
   name: "image-chunks"
 });
@@ -115,7 +113,7 @@ export const useImageStore = defineStore('image', {
           draggable: true
         };
 
-        // 建立 metadata
+        // metadata
         const metadata = {
           id: imageId,
           src: imageData,
@@ -190,7 +188,7 @@ export const useImageStore = defineStore('image', {
       return 0;
     },
 
-    // 新增：計算總存儲空間
+    // 計算總存儲空間
     async calculateTotalStorage() {
       let totalSize = 0;
       for (const image of this.imageList) {
@@ -201,7 +199,7 @@ export const useImageStore = defineStore('image', {
       return totalSize;
     },
 
-    // 新增：清理舊檔案
+    // 清理舊檔案
     async cleanupOldFiles(requiredSpace) {
       try {
         const sortedImages = [...this.imageList].sort((a, b) => a.timestamp - b.timestamp);
