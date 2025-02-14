@@ -24,7 +24,9 @@ export const useImageStore = defineStore('image', {
     canvasImages: [],
     imagesLoaded: false,
     zIndexMap: {},
-    chunkSize: 500 * 1024, // 500KB per chunk
+    chunkSize: 500 * 1024,
+    totalStorageLimit: 100 * 1024 * 1024, 
+    singleFileLimit: 10 * 1024 * 1024,
   }),
 
   actions: {
@@ -84,6 +86,20 @@ export const useImageStore = defineStore('image', {
 
     async addImage(image) {
       try {
+        if (!this.validateImageSize(image.src)) {
+          throw new Error(`圖片大小超過限制 ${this.singleFileLimit / (1024 * 1024)}MB`);
+        }
+
+        // 檢查總空間
+        const currentTotal = await this.calculateTotalStorage();
+        const newImageSize = this.calculateFileSize(image.src);
+
+        // 清理舊檔案
+        if (currentTotal + newImageSize > this.totalStorageLimit) {
+          const requiredSpace = (currentTotal + newImageSize) - this.totalStorageLimit;
+          await this.cleanupOldFiles(requiredSpace);
+        }
+
         const imageId = `img_${Date.now()}`;
         let imageData = image.src;
         
@@ -163,14 +179,53 @@ export const useImageStore = defineStore('image', {
       }
     },
 
-    validateImageSize(src) {
-      if (typeof src === 'string') {
-        return src.length <= 5 * 1024 * 1024;
+    calculateFileSize(src) {
+      if (typeof src === 'string' && src.includes(',')) {
+        const base64Length = src.length - (src.indexOf(',') + 1);
+        return (base64Length * 3) / 4;
       }
       if (src instanceof Blob || src instanceof File) {
-        return src.size <= 5 * 1024 * 1024;
+        return src.size;
       }
-      return false;
+      return 0;
+    },
+
+    // 新增：計算總存儲空間
+    async calculateTotalStorage() {
+      let totalSize = 0;
+      for (const image of this.imageList) {
+        if (image.src) {
+          totalSize += this.calculateFileSize(image.src);
+        }
+      }
+      return totalSize;
+    },
+
+    // 新增：清理舊檔案
+    async cleanupOldFiles(requiredSpace) {
+      try {
+        const sortedImages = [...this.imageList].sort((a, b) => a.timestamp - b.timestamp);
+        let freedSpace = 0;
+
+        while (freedSpace < requiredSpace && sortedImages.length > 0) {
+          const oldestImage = sortedImages.shift();
+          if (oldestImage) {
+            const fileSize = this.calculateFileSize(oldestImage.src);
+            await this.removeImageCompletely(oldestImage.id);
+            freedSpace += fileSize;
+          }
+        }
+
+        return freedSpace;
+      } catch (error) {
+        console.error('Failed to cleanup old files:', error);
+        throw error;
+      }
+    },
+
+    validateImageSize(src) {
+      const size = this.calculateFileSize(src);
+      return size <= this.singleFileLimit;
     },
 
     async loadImage(src) {

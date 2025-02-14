@@ -246,11 +246,6 @@ const textToImage = (text) => {
 };
 
 const handleImagePaste = async (file) => {
-  if (file.size > 5 * 1024 * 1024) {
-    alert('請使用小於 5MB 的圖片');
-    return;
-  }
-
   try {
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
